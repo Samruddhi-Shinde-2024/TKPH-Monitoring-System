@@ -1,0 +1,8 @@
+Flask
+firebase-admin
+pandas
+matplotlib
+joblib
+numpy
+scikit-learn
+python-dotenv
