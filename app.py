@@ -32,6 +32,14 @@ except Exception as e:
 # CSV file path
 csv_file = "tkph_predictions.csv"
 
+def get_operating_status(tkph_value):
+    """Classify the UI-facing TKPH operating range independently of the ML risk label."""
+    if tkph_value <= 150:
+        return "Stable"
+    if tkph_value <= 300:
+        return "Watch"
+    return "Critical"
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -107,20 +115,15 @@ def predict():
             3: "High Heat Failure Risk"
         }
         failure_risk = risk_map.get(failure_risk_code, "Unknown Risk")
-        
-        # Rule-based insights
-        insights = []
-        if tkph_value > 170:
-            insights.append({"type": "warning", "message": "Reduce speed or load."})
-        elif 120 <= tkph_value <= 140:
-            insights.append({"type": "success", "message": "Operating at ideal load."})
-        elif 100 <= tkph_value < 120:
-            insights.append({"type": "info", "message": "Optimize tire selection."})
-        
-        if tkph_value > 150:
-            insights.append({"type": "danger", "message": "High Heat Failure Risk! Consider load adjustment."})
-        elif tkph_value < 100:
-            insights.append({"type": "warning", "message": "High Cut Failure Risk! Avoid rough surfaces."})
+
+        # UI-facing status follows the operating ranges displayed in the dashboard.
+        operating_status = get_operating_status(tkph_value)
+        if operating_status == "Stable":
+            insights = [{"type": "success", "message": "TKPH is within the Stable operating range. Continue routine monitoring."}]
+        elif operating_status == "Watch":
+            insights = [{"type": "warning", "message": "TKPH is in the Watch range. Review and reduce speed or payload before the next high-load cycle."}]
+        else:
+            insights = [{"type": "danger", "message": "TKPH is in the Critical range. Reduce speed or payload immediately and inspect tire operating conditions."}]
             
         # Save to CSV
         new_entry = pd.DataFrame([[vehicle_no, tkph_value, tire_wear, remaining_life, fuel_consumption, failure_risk, maintenance_alert]],
@@ -139,6 +142,7 @@ def predict():
                 "remaining_life": round(remaining_life, 2),
                 "fuel_consumption": round(fuel_consumption, 2),
                 "failure_risk": failure_risk,
+                "operating_status": operating_status,
                 "maintenance_alert": bool(maintenance_alert),
                 "insights": insights
             }

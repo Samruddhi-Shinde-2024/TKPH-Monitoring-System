@@ -1,161 +1,55 @@
-document.addEventListener('DOMContentLoaded', function() {
-    // Form submission handler
-    const predictionForm = document.getElementById('predictionForm');
-    const resultCard = document.getElementById('resultCard');
-    
-    predictionForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        const vehicleNumber = document.getElementById('vehicleNumber').value;
-        const tkphValue = parseFloat(document.getElementById('tkphValue').value);
-        
-        if (!vehicleNumber || isNaN(tkphValue)) {
-            alert('Please enter valid values for all fields.');
-            return;
-        }
-        
-        // Show loading state
-        showLoading();
-        
-        // Make prediction request
-        fetch('/api/predict', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                vehicleNumber: vehicleNumber,
-                tkphValue: tkphValue
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            hideLoading();
-            
-            if (data.status === 'success') {
-                displayResults(data.data, vehicleNumber);
-            } else {
-                alert('Error: ' + data.message);
-            }
-        })
-        .catch(error => {
-            hideLoading();
-            console.error('Error making prediction:', error);
-            alert('An error occurred while making the prediction. Please try again.');
-        });
-    });
-    
-    // New Analysis button handler
-    document.getElementById('newAnalysisBtn').addEventListener('click', function() {
-        resultCard.classList.add('d-none');
-        predictionForm.reset();
-    });
-    
-    // Save PDF button handler (simplified - would need additional libraries for full implementation)
-    document.getElementById('savePdfBtn').addEventListener('click', function() {
-        alert('PDF generation would be implemented here with a library like jsPDF.');
-    });
-    
-    // Helper functions
-    function showLoading() {
-        predictionForm.querySelector('button').innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Calculating...';
-        predictionForm.querySelector('button').disabled = true;
-    }
-    
-    function hideLoading() {
-        predictionForm.querySelector('button').innerHTML = '<i class="fas fa-calculator"></i> Calculate Predictions';
-        predictionForm.querySelector('button').disabled = false;
-    }
-    
-    function displayResults(data, vehicleNumber) {
-        // Display the vehicle number
-        document.getElementById('vehicleLabel').textContent = `(${vehicleNumber})`;
-        
-        // Tire wear
-        const tireWearProgress = document.getElementById('tireWearProgress');
-        const tireWearValue = document.getElementById('tireWearValue');
-        
-        tireWearProgress.style.width = `${data.tire_wear}%`;
-        tireWearValue.textContent = `${data.tire_wear}%`;
-        
-        // Set progress bar color based on wear
-        if (data.tire_wear > 75) {
-            tireWearProgress.className = 'progress-bar bg-danger';
-        } else if (data.tire_wear > 50) {
-            tireWearProgress.className = 'progress-bar bg-warning';
-        } else {
-            tireWearProgress.className = 'progress-bar bg-success';
-        }
-        
-        // Remaining life
-        document.getElementById('remainingLifeValue').textContent = data.remaining_life;
-        
-        // Fuel consumption
-        document.getElementById('fuelConsumptionValue').textContent = data.fuel_consumption;
-        
-        // Failure risk
-        const failureRiskContainer = document.getElementById('failureRiskContainer');
-        let riskBadgeClass = 'bg-success';
-        
-        if (data.failure_risk.includes('High Heat')) {
-            riskBadgeClass = 'bg-danger';
-        } else if (data.failure_risk.includes('High Cut')) {
-            riskBadgeClass = 'bg-warning';
-        }
-        
-        failureRiskContainer.innerHTML = `<span class="badge ${riskBadgeClass}">${data.failure_risk}</span>`;
-        
-        // Maintenance alert
-        const maintenanceAlertContainer = document.getElementById('maintenanceAlertContainer');
-        
-        if (data.maintenance_alert) {
-            maintenanceAlertContainer.innerHTML = `
-                <div class="alert alert-danger">
-                    <i class="fas fa-exclamation-triangle"></i> Immediate maintenance required!
-                </div>
-            `;
-        } else {
-            maintenanceAlertContainer.innerHTML = `
-                <div class="alert alert-success">
-                    <i class="fas fa-check-circle"></i> No maintenance required at this time
-                </div>
-            `;
-        }
-        
-        // Insights
-        const insightsContainer = document.getElementById('insightsContainer');
-        insightsContainer.innerHTML = '';
-        
-        if (data.insights && data.insights.length > 0) {
-            data.insights.forEach(insight => {
-                let iconClass = 'info';
-                
-                switch (insight.type) {
-                    case 'success':
-                        iconClass = 'check-circle';
-                        break;
-                    case 'warning':
-                        iconClass = 'exclamation-triangle';
-                        break;
-                    case 'danger':
-                        iconClass = 'exclamation-circle';
-                        break;
-                }
-                
-                const insightElement = document.createElement('div');
-                insightElement.className = 'insight-item';
-                insightElement.innerHTML = `
-                    <i class="fas fa-${iconClass} text-${insight.type}"></i>
-                    <span>${insight.message}</span>
-                `;
-                
-                insightsContainer.appendChild(insightElement);
-            });
-        } else {
-            insightsContainer.innerHTML = '<p class="text-muted">No insights available.</p>';
-        }
-        
-        // Show the results card
-        resultCard.classList.remove('d-none');
-    }
+document.addEventListener('DOMContentLoaded', () => {
+  const form = document.getElementById('predictionForm');
+  const resultCard = document.getElementById('resultCard');
+  const placeholder = document.getElementById('resultsPlaceholder');
+  const submit = form.querySelector('button[type="submit"]');
+  const operatingStatusHeading = document.querySelector('#failureRiskContainer')?.closest('.prediction-group')?.querySelector('h4');
+  if (operatingStatusHeading) operatingStatusHeading.textContent = 'Operating status';
+
+  form.addEventListener('submit', event => {
+    event.preventDefault();
+    const vehicleNumber = document.getElementById('vehicleNumber').value.trim();
+    const tkphValue = Number(document.getElementById('tkphValue').value);
+    if (!vehicleNumber || Number.isNaN(tkphValue) || tkphValue < 0) return showToast('Enter a vehicle identifier and a valid non-negative TKPH value.', 'warning');
+    submit.disabled = true;
+    submit.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Running analysis...';
+    fetch('/api/predict', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vehicleNumber, tkphValue }) })
+      .then(response => response.json())
+      .then(result => { if (result.status !== 'success') throw new Error(result.message || 'Prediction failed'); displayResults(result.data, vehicleNumber); showToast('Predictive assessment complete.', 'success'); })
+      .catch(error => showToast(error.message || 'Prediction could not be completed.', 'danger'))
+      .finally(() => { submit.disabled = false; submit.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles me-1"></i> Calculate prediction'; });
+  });
+
+  document.getElementById('newAnalysisBtn')?.addEventListener('click', () => { resultCard.classList.add('d-none'); placeholder.classList.remove('d-none'); form.reset(); document.getElementById('vehicleNumber').focus(); });
+  document.getElementById('savePdfBtn')?.addEventListener('click', () => window.print());
+
+  function operatingBadge(status) {
+    const type = status === 'Critical' ? 'danger' : status === 'Watch' ? 'warning' : 'success';
+    return `<span class="badge bg-${type}">${escapeHtml(status || 'Stable')}</span>`;
+  }
+
+  function maintenanceMessage(status, modelAlert) {
+    if (status === 'Critical') return '<div class="alert alert-danger mb-0"><i class="fa-solid fa-triangle-exclamation me-2"></i><strong>Critical operating range.</strong> Reduce speed or payload immediately and inspect tire operating conditions.</div>';
+    if (status === 'Watch') return '<div class="alert alert-warning mb-0"><i class="fa-solid fa-triangle-exclamation me-2"></i><strong>Watch operating range.</strong> Review speed and payload before the next high-load cycle.</div>';
+    return modelAlert ? '<div class="alert alert-danger mb-0"><i class="fa-solid fa-triangle-exclamation me-2"></i><strong>Maintenance attention required.</strong> Schedule inspection before the next high-load duty cycle.</div>' : '<div class="alert alert-success mb-0"><i class="fa-solid fa-circle-check me-2"></i><strong>Stable operating range.</strong> Continue routine monitoring.</div>';
+  }
+
+  function displayResults(data, vehicle) {
+    const operatingStatus = data.operating_status || 'Stable';
+    document.getElementById('vehicleLabel').textContent = `· ${vehicle}`;
+    const wear = Math.max(0, Math.min(100, Number(data.tire_wear)));
+    const bar = document.getElementById('tireWearProgress');
+    bar.style.width = `${wear}%`;
+    bar.className = `progress-bar ${wear > 75 ? 'bg-danger' : wear > 50 ? 'bg-warning' : 'bg-success'}`;
+    document.getElementById('tireWearValue').textContent = `${wear.toFixed(2)}%`;
+    document.getElementById('remainingLifeValue').textContent = Number(data.remaining_life).toFixed(2);
+    document.getElementById('fuelConsumptionValue').textContent = Number(data.fuel_consumption).toFixed(2);
+    document.getElementById('failureRiskContainer').innerHTML = operatingBadge(operatingStatus);
+    document.getElementById('maintenanceAlertContainer').innerHTML = maintenanceMessage(operatingStatus, data.maintenance_alert);
+    const insights = document.getElementById('insightsContainer');
+    insights.innerHTML = data.insights?.length ? data.insights.map(insight => `<div class="insight-item"><i class="fa-solid ${insight.type === 'success' ? 'fa-circle-check text-success' : insight.type === 'danger' ? 'fa-circle-exclamation text-danger' : 'fa-triangle-exclamation text-warning'}"></i><span>${escapeHtml(insight.message)}</span></div>`).join('') : '<p class="text-secondary mb-0">No additional operating insights were generated.</p>';
+    placeholder.classList.add('d-none');
+    resultCard.classList.remove('d-none');
+    resultCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 });
