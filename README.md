@@ -15,6 +15,10 @@
 
 > **A predictive tire-health and truck-monitoring system that combines embedded sensing, Firebase real-time telemetry, machine learning, and a browser-based analytics dashboard.**
 
+<p align="center">
+  <img src="./assets/dashboard.png" alt="TKPH Monitoring Dashboard" width="100%">
+</p>
+
 ---
 
 ## 📌 Overview
@@ -110,7 +114,7 @@ The Flask application provides:
 
 ### 🔮 TKPH-Based Prediction
 
-Users can provide a vehicle number and TKPH value. The system generates:
+Users can enter a vehicle number and TKPH value to generate:
 
 - Tire-wear prediction
 - Remaining tire life
@@ -222,6 +226,7 @@ Random Forest Classification
   ├── Tire Failure Risk
   └── Maintenance Alert
 ```
+> **Risk interpretation:** The Random Forest classifier provides the model-based failure-risk prediction, while the dashboard uses TKPH operating thresholds to present the primary Stable/Watch/Critical operating status. These are complementary signals rather than interchangeable labels.
 
 ### 5. Model Evaluation
 
@@ -512,8 +517,8 @@ The dashboard uses TKPH thresholds for status indication:
 
 | TKPH Range | Dashboard Status |
 |---|---|
-| `0 – 150` | Normal |
-| `151 – 300` | Warning |
+| `0 – 150` | Stable |
+| `151 – 300` | Watch |
 | `> 300` | Critical |
 
 > These thresholds are application-level monitoring rules used by the dashboard and should not be interpreted as universal tire-manufacturer limits.
